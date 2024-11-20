@@ -2,7 +2,7 @@ import os
 import cv2
 from tqdm import tqdm
 
-root_path=os.path.join(os.getcwd(),'CompCars/data')
+root_path=os.path.join(os.getcwd(),'../CompCars/data')
 
 for subdir, dirs, files in tqdm(os.walk(os.path.join(root_path,'image'))):
 
