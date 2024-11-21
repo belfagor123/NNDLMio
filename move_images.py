@@ -1,29 +1,21 @@
 import os
+import cv2
 import shutil
 from torchvision import transforms, datasets
 import numpy as np
 from torch.utils.data import SubsetRandomSampler
+from tqdm import tqdm
 
 root_path = os.path.join(os.getcwd(), '../CompCars/data/cropped_image')
-destination_path = os.path.join(os.getcwd(), '../CompCars/data/split_cropped_image')
+destination_path = os.path.join(os.getcwd(), '../CompCars/data/split_cropped_image1')
 
-test_perc = 0.3
+test_perc = 0.9
 
 # Already normalize the images so that you don't have to do it during training or testing
-normalize = transforms.Normalize(
-    mean=[0.485, 0.456, 0.406],
-    std=[0.229, 0.224, 0.225]
-)
-
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    normalize,
-])
 
 # Load the whole dataset with from the folder structure
 full_dataset = datasets.ImageFolder(
-    root=root_path, transform=transform
+    root=root_path
 )
 
 # Extract some samples to be only used during test 
@@ -36,7 +28,7 @@ train_idx, test_idx = indices[split:], indices[:split]
 
 # Function to copy images while preserving folder structure
 def copy_images(indices, dataset, destination_dir):
-    for idx in indices:
+    for idx in tqdm(indices,desc=f'Copying files into directory {destination_dir.split('/')[-1]}'):
         img_path, _ = dataset.imgs[idx]
         
         # Get the relative path to preserve folder structure
@@ -49,7 +41,8 @@ def copy_images(indices, dataset, destination_dir):
         os.makedirs(dest_class_dir, exist_ok=True)
         
         # Copy image
-        shutil.copy(img_path, dest_class_dir)
+        shutil.copy(img_path,dest_class_dir)
+        #np.save(os.path.join(dest_class_dir,relative_path.split('/')[-1]).replace('jpg','npy'),cv2.imread(img_path))
 
 # Copy images to the train and test directories
 train_path = os.path.join(destination_path, 'train')

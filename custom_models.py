@@ -25,6 +25,11 @@ class ResidualBlock(nn.Module):
         return out
     
 class ResNet(nn.Module):
+
+    # Generic class for ResNet18 and ResNet34, bigger models modify the blocks
+    # resnet18 = ResNet(ResidualBlock, [2, 2, 2, 2],num_classes=num_classes).to(device)
+    # resnet34 = ResNet(ResidualBlock, [3, 4, 6, 3],num_classes=num_classes).to(device) 
+
     def __init__(self, block, layers, num_classes):
         super(ResNet, self).__init__()
         self.inplanes = 64
@@ -37,7 +42,7 @@ class ResNet(nn.Module):
         self.layer1 = self._make_layer(block, 128, layers[1], stride = 2)
         self.layer2 = self._make_layer(block, 256, layers[2], stride = 2)
         self.layer3 = self._make_layer(block, 512, layers[3], stride = 2)
-        self.avgpool = nn.AvgPool2d(7, stride=1)
+        self.avgpool = nn.AvgPool2d(kernel_size=7, stride=1)
         self.fc = nn.Linear(512, num_classes)
 
     def _make_layer(self, block, planes, blocks, stride=1):
