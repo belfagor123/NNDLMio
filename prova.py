@@ -5,87 +5,93 @@ from torchvision import datasets
 from torchvision import transforms
 from torch.utils.data.sampler import SubsetRandomSampler
 import os
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset,DataLoader,Subset
 import custom_models as cst
 import gc
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+from PIL import Image
+from sklearn.model_selection import train_test_split
 
 # Device configuration
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Define custom data loader for our specific structure
-def data_loader(data_dir,
-                batch_size,
-                random_seed=42,
-                valid_size=0.1,
-                shuffle=True,
-                test=False):
+class CustomImageDataset(Dataset):
+    def __init__(self, root_dir, file_paths, transform=None, train=True, validation_split=0.1, random_seed=42):
+        """
+        Args:
+            root_dir (str): Root directory containing the image files.
+            file_paths (str): Path to the text file containing image paths (relative to root_dir).
+            transform (callable, optional): Transform to be applied on an image.
+            train (bool): If True, splits data into training and validation sets.
+            validation_split (float): Proportion of data to use for validation.
+            random_seed (int): Random seed for reproducibility of splits.
+        """
+        self.root_dir = root_dir
+        self.image_paths = []
+        self.labels = []
 
-    normalize = transforms.Normalize(
-    mean=[0.485, 0.456, 0.406],
-    std=[0.229, 0.224, 0.225]
-    )
+        # Load paths and labels from the text file
+        with open(file_paths, 'r') as f:
+            for line in f:
+                path = line.strip()
+                label = path.split('/')[0]
+                self.image_paths.append(path)
+                self.labels.append(int(label))  # Convert label to integer
 
-    transform = transforms.Compose([
+        # If train flag is true, split into train and validation sets
+        if train:
+            train_indices, val_indices = train_test_split(
+                range(len(self.image_paths)),
+                test_size=validation_split,
+                random_state=random_seed,
+                stratify=self.labels  # Stratify ensures class balance in both splits
+            )
+            self.train_indices = train_indices
+            self.val_indices = val_indices
+
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        # Load image and label
+        img_path = os.path.join(self.root_dir, self.image_paths[idx])
+        image = Image.open(img_path).convert("RGB")  # Ensure 3-channel RGB format
+        label = self.labels[idx]
+
+        # Apply transformations
+        if self.transform:
+            image = self.transform(image)
+
+        return image, label
+
+
+transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    normalize,
-    ])
-
-    # If test flag is True load from test folder
-    if test:
-        # Assume you have a separate folder for testing images
-        dataset = datasets.ImageFolder(
-            root=os.path.join(data_dir, 'test'),
-            transform=transform
-        )
-
-        data_loader = DataLoader(
-            dataset, batch_size=batch_size, shuffle=False
-        )
-
-        return data_loader
-
-    # Load the train part of the dataset
-    full_dataset = datasets.ImageFolder(
-        root=os.path.join(data_dir, 'train'),
-        transform=transform
-    )
-
-    # Split the training and validation
-    num_train = len(full_dataset)
-    indices = list(range(num_train))
-    split = int(np.floor(valid_size * num_train))
-
-    # Shuffle the data indices if shuffle is True
-    if shuffle:
-        np.random.seed(random_seed)
-        np.random.shuffle(indices)
-
-    train_idx, valid_idx = indices[split:], indices[:split]
-    train_sampler = SubsetRandomSampler(train_idx)
-    valid_sampler = SubsetRandomSampler(valid_idx)
-
-    # Create DataLoaders for training and validation
-    train_loader = DataLoader(
-        full_dataset, batch_size=batch_size, sampler=train_sampler
-    )
-
-    valid_loader = DataLoader(
-        full_dataset, batch_size=batch_size, sampler=valid_sampler
-    )
-
-    return (train_loader, valid_loader)
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
 
 # Define parameters
 num_classes = 163
-num_epochs = 2
+num_epochs = 10
 batch_size = 64
-learning_rate = 0.01
+learning_rate = 1e-4
 
-# Creating the loaders
-train_loader, valid_loader = data_loader(data_dir=os.path.join(os.getcwd(), '../CompCars/data/split_cropped_image1'),
-                                         batch_size=batch_size)
+root_dir=os.path.join(os.getcwd(),'../CompCars/data/cropped_image')
+file_paths_train=os.path.join(os.getcwd(),'../CompCars/data/train_test_split2/classification/train.txt')
+
+dataset = CustomImageDataset(root_dir=root_dir, file_paths=file_paths_train, transform=transform, train=True)
+
+# Create training and validation subsets
+train_subset = Subset(dataset, dataset.train_indices)
+val_subset = Subset(dataset, dataset.val_indices)
+
+# Create dataloaders
+train_loader = DataLoader(train_subset, batch_size=batch_size)
+valid_loader = DataLoader(val_subset, batch_size=batch_size)
 
 #test_loader = data_loader(data_dir=os.path.join(os.getcwd(), '../CompCars/data/split_cropped_image'),
 #                          batch_size=batch_size, test=True)
@@ -101,47 +107,50 @@ for epoch in tqdm(range(num_epochs)):
     running_loss = 0.0
     correct_train = 0
     total_train = 0
-    for i, (images, labels) in tqdm(enumerate(train_loader),desc=f'Currently running epoch number {epoch+1}',leave=True):  
+    i=0
+    for images, labels in tqdm(train_loader,desc=f'Currently running epoch number {epoch+1}',leave=False):  
         #Move tensors to the configured device
         images = images.to(device)
         labels = labels.to(device)
+        labels = labels-1
 
         #Forward pass
         outputs = model(images)
         loss = criterion(outputs, labels)
+        i+=1
+        running_loss+=loss.item() #the first one is wrong
 
         #Backward and optimize
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        _, predicted = torch.max(outputs.data, 1)
-        total_train += labels.size(0)
+        predicted = torch.argmax(outputs.data, 1)
+        total_train += outputs.size(0)
         correct_train += (predicted == labels).sum().item()
 
         del images, labels, outputs
         torch.cuda.empty_cache()
         gc.collect()
 
-    print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss / len(train_loader)}, Accuracy: {100 * correct_train / total_train}%')
-
-
-# Validation
+    # Validation
  
-model.eval()  # Set model to evaluation mode
-correct_val = 0
-total_val = 0
+    model.eval()  # Set model to evaluation mode
+    correct_val = 0
+    total_val = 0
 
-with torch.no_grad():
-    for images, labels in tqdm(valid_loader):
-        images = images.to(device)
-        labels = labels.to(device)
-        outputs = model(images)
-        _, predicted = torch.max(outputs.data, 1)
-        total_val += labels.size(0)
-        correct_val += (predicted == labels).sum().item()
-        del images, labels, outputs
+    with torch.no_grad():
+        for images, labels in tqdm(valid_loader,leave=True):
+            images = images.to(device)
+            labels = labels.to(device)
+            outputs = model(images)
+            predicted = torch.argmax(outputs.data, 1)
+            predicted=predicted+1
+            total_val += labels.size(0)
+            correct_val += (predicted == labels).sum().item()
+            del images, labels, outputs
 
-    print(f'Accuracy of the network on the {len(valid_loader)} batches of validation images: {100 * correct_val / total_val} %')
+    print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss / i}, Training Accuracy: {100 * correct_train / total_train}%, Validation Accuracy: {100 * correct_val / total_val}%')
 
-torch.save(model.state_dict(),os.path.join(os.getcwd(),'../CompCars/data/model.pt'))
+
+torch.save(model.state_dict(),os.path.join(os.getcwd(),'model.pt'))

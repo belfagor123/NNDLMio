@@ -7,7 +7,7 @@ from torch.utils.data import SubsetRandomSampler
 from tqdm import tqdm
 
 root_path = os.path.join(os.getcwd(), '../CompCars/data/cropped_image')
-destination_path = os.path.join(os.getcwd(), '../CompCars/data/split_cropped_image1')
+destination_path = os.path.join(os.getcwd(), '../CompCars/data/split_cropped_image2')
 
 test_perc = 0.9
 
