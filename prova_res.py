@@ -12,12 +12,13 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from PIL import Image
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 
 # Device configuration
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class CustomImageDataset(Dataset):
-    def __init__(self, root_dir, file_paths, transform=None, train=True, validation_split=0.1, random_seed=42):
+    def __init__(self, root_dir, file_paths, transform=None, train=True, validation_split=0.1, random_seed=42, classification_type='make'):
         """
         Args:
             root_dir (str): Root directory containing the image files.
@@ -26,26 +27,36 @@ class CustomImageDataset(Dataset):
             train (bool): If True, splits data into training and validation sets.
             validation_split (float): Proportion of data to use for validation.
             random_seed (int): Random seed for reproducibility of splits.
+            classification_type (str): make for car make classification, model for model classification
         """
         self.root_dir = root_dir
         self.image_paths = []
         self.labels = []
+        
+        if classification_type=='make':
+            label_position=0
+        elif classification_type=='model':
+            label_position=1
+        else:
+            print('Wrong classification type') 
 
         # Load paths and labels from the text file
         with open(file_paths, 'r') as f:
             for line in f:
                 path = line.strip()
-                label = path.split('/')[0]
+                label = path.split('/')[label_position]
                 self.image_paths.append(path)
                 self.labels.append(int(label))  # Convert label to integer
+                
+        self.label_encoder = LabelEncoder()
+        self.labels = self.label_encoder.fit_transform(self.labels)
 
         # If train flag is true, split into train and validation sets
         if train:
             train_indices, val_indices = train_test_split(
                 range(len(self.image_paths)),
                 test_size=validation_split,
-                random_state=random_seed,
-                stratify=self.labels  # Stratify ensures class balance in both splits
+                random_state=random_seed
             )
             self.train_indices = train_indices
             self.val_indices = val_indices
@@ -64,8 +75,8 @@ class CustomImageDataset(Dataset):
         # Apply transformations
         if self.transform:
             image = self.transform(image)
-
         return image, label
+    
 
 
 transform = transforms.Compose([
@@ -75,15 +86,21 @@ transform = transforms.Compose([
 ])
 
 # Define parameters
-num_classes = 163
+classification_type='model'  #make or model
 num_epochs = 10
 batch_size = 64
 learning_rate = 1e-4
+if classification_type=='make':
+    num_classes=163
+elif classification_type=='model':
+    num_classes=1712
+else:
+    print('Wrong classification type') 
 
 root_dir=os.path.join(os.getcwd(),'../CompCars/data/cropped_image')
 file_paths_train=os.path.join(os.getcwd(),'../CompCars/data/train_test_split2/classification/train.txt')
 
-dataset = CustomImageDataset(root_dir=root_dir, file_paths=file_paths_train, transform=transform, train=True)
+dataset = CustomImageDataset(root_dir=root_dir, file_paths=file_paths_train, transform=transform, train=True, classification_type=classification_type)
 
 # Create training and validation subsets
 train_subset = Subset(dataset, dataset.train_indices)
@@ -112,7 +129,6 @@ for epoch in tqdm(range(num_epochs)):
         #Move tensors to the configured device
         images = images.to(device)
         labels = labels.to(device)
-        labels = labels-1
 
         #Forward pass
         outputs = model(images)
@@ -145,7 +161,6 @@ for epoch in tqdm(range(num_epochs)):
             labels = labels.to(device)
             outputs = model(images)
             predicted = torch.argmax(outputs.data, 1)
-            predicted=predicted+1
             total_val += labels.size(0)
             correct_val += (predicted == labels).sum().item()
             del images, labels, outputs
@@ -153,4 +168,4 @@ for epoch in tqdm(range(num_epochs)):
     print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss / i}, Training Accuracy: {100 * correct_train / total_train}%, Validation Accuracy: {100 * correct_val / total_val}%')
 
 
-torch.save(model.state_dict(),os.path.join(os.getcwd(),'model.pt'))
+torch.save(model.state_dict(),os.path.join(os.getcwd(),'model_res.pt'))
