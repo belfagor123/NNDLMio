@@ -1,6 +1,10 @@
 import torch.nn as nn
 import torch
 
+"""
+This code creates the building blocks for the Inception and ResNet architecture and then builds the models themselves as an extension of nn.Module
+"""
+
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride = 1, downsample = None):
         super(ResidualBlock, self).__init__()
@@ -130,7 +134,6 @@ class InceptionV1 (nn.Module):
                                     ConvBlock(in_channels=64,out_channels=192,kernel_size=3,stride=1,padding=1))
         self.maxpool2 = nn.MaxPool2d(kernel_size=3,stride=2,padding=1)
 
-        # in_channels , out_1x1 , red_3x3 , out_3x3 , red_5x5 , out_5x5 , out_1x1_pooling
         self.inception3a = InceptionBlock(in_channels=192,out_1x1=64,int_3x3=96,out_3x3=128,int_5x5=16,out_5x5=32,out_1x1_pooling=32)
         self.inception3b = InceptionBlock(in_channels=256,out_1x1=128,int_3x3=128,out_3x3=192,int_5x5=32,out_5x5=96,out_1x1_pooling=64)
         self.maxpool3 = nn.MaxPool2d(kernel_size=3,stride=2,padding=1)
