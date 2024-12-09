@@ -9,8 +9,8 @@ from tqdm import tqdm
 import torch.nn as nn
 
 # Parameters
-splits_folder='train_test_split'    # Name of the folder that contains the txt files for the splits 
-model_save_name = 'model_inception_make_16_focal_4.pt'  # Name of the model
+splits_folder='train_test_split3'    # Name of the folder that contains the txt files for the splits 
+model_save_name = 'model_inception_make_16_focal_1.pt'  # Name of the model
 model_name,classification_type,batch_size,loss_name=model_save_name.split('.')[0].split('_')[1:-1]  # Extract parameters of the model to reconstruct it
 batch_size = int(batch_size)    # Convert to int
 

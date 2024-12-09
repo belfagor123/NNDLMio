@@ -19,6 +19,7 @@ write_path = os.path.join(os.getcwd(),
                            '../CompCars/data/train_test_split3/classification')     # Path of where to write the txt files with the train test splits
 percentage_to_use = 1.0     # Percentage of the whole data to use
 percentage_to_test = 0.2    # Percentage of the used data to be used during test only
+np.random.seed(0)
 
 # Function to extract labels from paths, set the index to return as 0 for make label, 1 for model label
 def extract_class_label(file_path):

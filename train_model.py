@@ -15,10 +15,10 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # Define parameters
 classification_type = 'make'  # Make or model
 num_epochs = 10
-batch_size = 16
+batch_size = 32
 learning_rate = 1e-4
-splits_folder='train_test_split'  # Folder which contains two files train.txt and test.txt with a list of images to use for train and test
-model_name='resnet-simple'  # Model, for now between inception, resnet18 and resnet-simple                     
+splits_folder='train_test_split3'  # Folder which contains two files train.txt and test.txt with a list of images to use for train and test
+model_name='inception'  # Model, for now between inception, resnet18 and resnet-simple                     
 loss_name='focal'   # Loss, for now between focal and cross-entropy
 patience = 2    # For early stopping
 progressive = 3 # Used for differentiating between runs with same parameters
