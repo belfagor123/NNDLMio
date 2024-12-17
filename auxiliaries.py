@@ -6,12 +6,14 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import pandas as pd
+import numpy as np
 
 """
 This code includes some auxiliary functions that have been put here in order to be used in different files later
 """
 
-class CustomImageDataset(Dataset):
+class ClassificationImageDataset(Dataset):
     def __init__(self, root_dir, file_paths, classification_type, transform=None, train=True, validation_split=0.1, random_seed=42):
         """
         This is a Custom Dataset class which inherits Dataset from torch.
@@ -20,7 +22,7 @@ class CustomImageDataset(Dataset):
         root_dir is the directory which contains the files
         file_paths is the path to the file that contains the paths for either training or testing
         """
-        super(CustomImageDataset).__init__()
+        super(ClassificationImageDataset).__init__()
 
         self.root_dir = root_dir
         self.image_paths = []
@@ -73,6 +75,136 @@ class CustomImageDataset(Dataset):
             image = self.transform(image)
 
         return image, label
+    
+class AttributePredictionDataset(Dataset):
+    def __init__(self, root_dir, file_paths, prediction_type, transform=None, train=True, validation_split=0.1, random_seed=42):
+        """
+        This is a Custom Dataset class which inherits Dataset from torch.
+        It can be operated in two ways: train=True or train=False
+        When train=True the value of validation_split is important but it can be set to None
+        root_dir is the directory which contains the files
+        file_paths is the path to the file that contains the paths for either training or testing
+        """
+        super(AttributePredictionDataset).__init__()
+
+        self.root_dir = root_dir
+        self.image_paths = []
+        self.labels = []
+        self.prediction_type=prediction_type
+
+        if prediction_type=='maxspeed':
+            prediction_type='maximum_speed'
+        elif prediction_type=='doornumber':
+            prediction_type='door_number'
+        elif prediction_type=='seatnumber':
+            prediction_type='seat_number'
+            
+        path=os.path.join(os.getcwd(),'../CompCars/data/misc/attributes.txt')
+        label_table=pd.read_csv(path,sep=' ',index_col='model_id')
+        label_table=label_table[(label_table[prediction_type]!=0)]
+
+        # Load paths and labels from the text file
+        with open(file_paths, 'r') as f:
+            for line in f:
+                path = line.strip()
+                model_id = int(path.split('/')[1])      # Get model id
+                
+                if model_id in label_table.index:
+                    label = label_table.loc[model_id][prediction_type]
+                    
+                    if prediction_type in ['door_number','seat_number'] and label > 5:  # As is done in the paper, values over 5 are reduced to 5
+                        label=5
+                        
+                    self.image_paths.append(path)   # Save image path
+                    self.labels.append(label)  # Since we're using the numbers of either car_make or car_model because the number-label correspondance is wrong
+        if prediction_type in ['door_number','seat_number','type']:
+            self.label_encoder = LabelEncoder()     # This is needed because the model ids are not sequential and this shifts them as sequential
+            self.labels = self.label_encoder.fit_transform(self.labels)
+
+        # If train flag is true, split into train and validation sets
+        if train:
+            train_indices, val_indices = train_test_split(
+                range(len(self.image_paths)),
+                test_size=validation_split,
+                random_state=random_seed,
+                stratify=self.labels  # Ensure good split label-wise
+            )
+            self.train_indices = train_indices  # Set the indices for later use
+            self.val_indices = val_indices
+
+        self.transform = transform
+
+    # Implementing needed methods for Dataset class
+    def __len__(self):  
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        # Load image and label
+        img_path = os.path.join(self.root_dir, self.image_paths[idx])
+        image = Image.open(img_path).convert("RGB")  # Ensure 3-channel RGB format
+        label = self.labels[idx]
+
+        # Apply transformations if any
+        if self.transform:
+            image = self.transform(image)
+
+        return image, label
+    
+class VerificationImageDataset(Dataset):
+    def __init__(self, root_dir, file_paths, classification_type, transform=None, train=True, validation_split=0.1, random_seed=42):
+        """
+        This is a Custom Dataset class which inherits Dataset from torch.
+        It can be operated in two ways: train=True or train=False
+        When train=True the value of validation_split is important but it can be set to None
+        root_dir is the directory which contains the files
+        file_paths is the path to the file that contains the paths for either training or testing
+        """
+        super(VerificationImageDataset).__init__()
+
+        self.root_dir = root_dir
+        self.image1_paths = []
+        self.image2_paths = []
+        self.labels = []
+
+        # Load paths and labels from the text file
+        with open(file_paths, 'r') as f:
+            for line in f:
+                image1,image2,label = line.split(' ')
+                self.image1_paths.append(image1)   # Save image1 path
+                self.image2_paths.append(image2)   # Save image2 path
+                self.labels.append(int(label))  # 
+
+        # If train flag is true, split into train and validation sets
+        if train:
+            train_indices, val_indices = train_test_split(
+                range(len(self.image1_paths)),
+                test_size=validation_split,
+                random_state=random_seed,
+                stratify=self.labels  # Ensure good split label-wise
+            )
+            self.train_indices = train_indices  # Set the indices for later use
+            self.val_indices = val_indices
+
+        self.transform = transform
+
+    # Implementing needed methods for Dataset class
+    def __len__(self):  
+        return len(self.image1_paths)
+
+    def __getitem__(self, idx):
+        # Load image and label
+        image1_path = os.path.join(self.root_dir, self.image1_paths[idx])
+        image2_path = os.path.join(self.root_dir, self.image2_paths[idx])
+        image1 = Image.open(image1_path).convert("RGB")  # Ensure 3-channel RGB format
+        image2 = Image.open(image1_path).convert("RGB")  # Ensure 3-channel RGB format
+        label = self.labels[idx]
+
+        # Apply transformations if any
+        if self.transform:
+            image1 = self.transform(image1)
+            image2 = self.transform(image2)
+
+        return image1, image2, label
 
 # Define Focal Loss which is not present in torch 
 class FocalLoss(nn.Module):
@@ -97,4 +229,23 @@ class FocalLoss(nn.Module):
             return loss.sum()  # Return the sum of losses
         else:
             return loss  # Return the loss per sample (no reduction)
+        
+class ContrastiveLoss(nn.Module):
+    
+    def __init__(self, margin=1.0):
+        super(ContrastiveLoss, self).__init__()
+        self.margin = margin
+
+    def forward(self, similarity, label):
+        # Convert similarity score to distance-like values
+        pos_loss = label * torch.pow(1 - similarity, 2)
+        neg_loss = (1 - label) * torch.pow(torch.clamp(similarity - self.margin, min=0.0), 2)
+        loss = torch.mean(pos_loss + neg_loss)
+        
+        print(pos_loss)
+        print(neg_loss)
+        print(loss)
+        
+        return loss
+
 

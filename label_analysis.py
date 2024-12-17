@@ -22,8 +22,11 @@ def count_car_makes_and_models(file_paths):
     return len(car_makes), len(car_models)
 
 # Paths to your training and testing text files
-training_file = os.path.join(os.getcwd(),'../CompCars/data/train_test_split/classification/train.txt')
-testing_file = training_file.replace('train','test')
+training_file = os.path.join(os.getcwd(),'../CompCars/data/splits/train_test_split_part_model_100_80_20_0/classification/train.txt')
+testing_file = training_file.replace('train.txt','test.txt')
+
+print(training_file)
+print(testing_file)
 
 # Count car makes and models
 file_paths = [training_file, testing_file]
@@ -31,3 +34,15 @@ num_car_makes, num_car_models = count_car_makes_and_models(file_paths)
 
 print(f"Number of unique car makes: {num_car_makes}")
 print(f"Number of unique car models: {num_car_models}")
+
+file_paths = [training_file]
+num_car_makes, num_car_models = count_car_makes_and_models(file_paths)
+
+print(f"Number of unique car makes in training set: {num_car_makes}")
+print(f"Number of unique car models in training set: {num_car_models}")
+
+file_paths = [testing_file]
+num_car_makes, num_car_models = count_car_makes_and_models(file_paths)
+
+print(f"Number of unique car makes in test set: {num_car_makes}")
+print(f"Number of unique car models in test set: {num_car_models}")
